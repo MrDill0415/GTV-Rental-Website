@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTV Rental — Set Up Your Account</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <h1>GTV Rental</h1>
+        <p id="subtitle">Create your account</p>
+      </div>
+
+      <div id="errorBox" class="login-error"></div>
+
+      <!-- Valid token: show setup form -->
+      <form id="setupForm" style="display:none">
+        <div class="form-group">
+          <label for="username">Choose a Username</label>
+          <input type="text" id="username" placeholder="e.g. jsmith" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Choose a Password</label>
+          <input type="password" id="password" placeholder="At least 6 characters" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" placeholder="Repeat your password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" style="margin-top:.5rem">Create Account</button>
+      </form>
+
+      <!-- Success state -->
+      <div id="successBox" style="display:none;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:.75rem">✅</div>
+        <p style="font-weight:600;margin-bottom:.5rem">Account created!</p>
+        <p class="text-muted" style="margin-bottom:1.25rem">You can now sign in with your new username and password.</p>
+        <a href="index.html" class="btn btn-primary btn-full">Go to Login</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('token');
+
+    const errorBox = document.getElementById('errorBox');
+    const form     = document.getElementById('setupForm');
+
+    function showError(msg) {
+      errorBox.textContent    = msg;
+      errorBox.style.display  = 'block';
+      form.style.display      = 'none';
+      document.getElementById('subtitle').textContent = 'Something went wrong';
+    }
+
+    if (!token) {
+      showError('No setup token found. Ask your teacher to resend the invite.');
+    } else {
+      // Check the token is valid before showing the form
+      const users = DB.getUsers();
+      const match = users.find(u => u.token === token && u.status === 'pending');
+      if (!match) {
+        showError('This setup link is invalid or has already been used. Ask your teacher if you need a new one.');
+      } else {
+        form.style.display = 'block';
+        document.getElementById('subtitle').textContent = 'Setting up account for ' + match.email;
+      }
+    }
+
+    document.getElementById('setupForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const confirm  = document.getElementById('confirmPassword').value;
+
+      if (password !== confirm) {
+        errorBox.textContent   = 'Passwords do not match.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      const result = DB.completeSetup(token, username, password);
+      if (result.error) {
+        errorBox.textContent   = result.error;
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      form.style.display = 'none';
+      document.getElementById('successBox').style.display = 'block';
+    });
+  </script>
+</body>
+</html>

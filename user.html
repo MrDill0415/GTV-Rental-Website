@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTV Rental — My Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .equipment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .equip-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+    }
+    .equip-card.unavailable { opacity: .55; }
+    .equip-name { font-weight: 600; font-size: .95rem; }
+    .equip-meta { font-size: .8rem; color: var(--muted); display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .equip-actions { margin-top: auto; padding-top: .5rem; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <span class="nav-brand">GTV Rental</span>
+    <div class="nav-user">
+      <span id="navUser"></span>
+      <span class="tag tag-green">Student</span>
+      <button class="btn btn-ghost btn-sm" onclick="DB.logout()">Sign Out</button>
+    </div>
+  </div>
+</nav>
+
+<div class="page-wrap" style="padding-top:1.5rem;padding-bottom:3rem;">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="browse">Browse Equipment</button>
+    <button class="tab" data-tab="mine">My Rentals</button>
+    <button class="tab" data-tab="announcements">Announcements <span id="annBadge" style="display:none;background:var(--accent);color:#fff;font-size:.7rem;font-weight:600;padding:.1rem .45rem;border-radius:99px;margin-left:.25rem"></span></button>
+  </div>
+
+  <!-- ── BROWSE ──────────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-browse">
+    <div class="section-header" style="margin-bottom:1rem">
+      <span class="section-title">Available Equipment</span>
+    </div>
+    <div class="equipment-grid" id="equipmentGrid"></div>
+  </div>
+
+  <!-- ── MY RENTALS ─────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-mine">
+
+    <!-- Pending approvals -->
+    <div id="pendingSection" style="display:none;margin-bottom:1.5rem;">
+      <div class="section-header"><span class="section-title">Awaiting Approval</span></div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Item</th><th>Requested</th><th>Status</th></tr></thead>
+            <tbody id="pendingBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Currently checked out -->
+    <div class="section-header"><span class="section-title">Currently Checked Out</span></div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Rented On</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="activeBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="section-header"><span class="section-title">Rental History</span></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Rented On</th><th>Returned</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ANNOUNCEMENTS ──────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-announcements">
+    <div class="section-header" style="margin-bottom:1rem">
+      <span class="section-title">Announcements</span>
+    </div>
+    <div id="announcementsList"></div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+const user = DB.requireLogin();
+if (user.isAdmin) window.location.href = 'admin.html';
+document.getElementById('navUser').textContent = 'Hello, ' + user.username;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+function renderAnnouncements() {
+  const list  = DB.getAnnouncements();
+  const el    = document.getElementById('announcementsList');
+  const badge = document.getElementById('annBadge');
+
+  if (list.length) {
+    badge.style.display = 'inline';
+    badge.textContent   = list.length;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📢</div>No announcements right now.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(a => `
+    <div class="announcement-item">
+      <div>
+        <div class="announcement-text">${escHtml(a.text)}</div>
+        <div class="announcement-meta">${fmtDate(a.createdAt)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Browse equipment ──────────────────────────────────────────────────────────
+function renderEquipment() {
+  const items     = DB.getItems();
+  const myRentals = DB.getRentals().filter(r => r.userId === user.id && (r.status === 'active' || r.status === 'pending') && !r.returnedAt);
+  const rentedIds = myRentals.map(r => r.itemId);
+  const grid      = document.getElementById('equipmentGrid');
+
+  if (!items.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div>No equipment has been added yet.</div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(item => {
+    const alreadyHave = rentedIds.includes(item.id);
+    const unavailable = item.available < 1;
+    const approvalTag = item.requiresApproval
+      ? `<span class="tag tag-yellow">Needs Approval</span>`
+      : `<span class="tag tag-green">Instant</span>`;
+    const availTag = unavailable
+      ? `<span class="tag tag-red">None Available</span>`
+      : `<span class="tag tag-blue">${item.available} available</span>`;
+
+    let btn = '';
+    if (alreadyHave) {
+      btn = `<button class="btn btn-ghost btn-sm" disabled style="opacity:.5;cursor:default">Already Requested</button>`;
+    } else if (unavailable) {
+      btn = `<button class="btn btn-ghost btn-sm" disabled style="opacity:.5;cursor:default">Unavailable</button>`;
+    } else if (item.requiresApproval) {
+      btn = `<button class="btn btn-warn btn-sm" onclick="requestRental(${item.id})">Request Rental</button>`;
+    } else {
+      btn = `<button class="btn btn-success btn-sm" onclick="requestRental(${item.id})">Rent Now</button>`;
+    }
+
+    return `
+      <div class="equip-card ${unavailable && !alreadyHave ? 'unavailable' : ''}">
+        <div class="equip-name">${escHtml(item.name)}</div>
+        <div class="equip-meta">${approvalTag} ${availTag}</div>
+        <div class="equip-actions">${btn}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function requestRental(itemId) {
+  const result = DB.requestRental(user.id, user.username, itemId);
+  if (result.error) { toast(result.error, 'error'); return; }
+  if (result.status === 'pending') {
+    toast('Request submitted — waiting for teacher approval.', 'info');
+  } else {
+    toast('Item rented! Check "My Rentals" to see it.');
+  }
+  render();
+}
+
+// ── My Rentals ────────────────────────────────────────────────────────────────
+function renderMyRentals() {
+  const all     = DB.getUserRentals(user.id);
+  const pending = all.filter(r => r.status === 'pending');
+  const active  = all.filter(r => r.status === 'active' && !r.returnedAt);
+  const history = all.filter(r => r.returnedAt);
+
+  // pending section
+  const pendSec = document.getElementById('pendingSection');
+  const pendBody = document.getElementById('pendingBody');
+  if (pending.length) {
+    pendSec.style.display = 'block';
+    pendBody.innerHTML = pending.map(r => `<tr>
+      <td>${r.itemName}</td>
+      <td>${fmtDate(r.requestedAt)}</td>
+      <td><span class="tag tag-yellow">Pending</span></td>
+    </tr>`).join('');
+  } else {
+    pendSec.style.display = 'none';
+  }
+
+  // active
+  const activeBody = document.getElementById('activeBody');
+  if (active.length) {
+    activeBody.innerHTML = active.map(r => `<tr>
+      <td><strong>${r.itemName}</strong></td>
+      <td>${fmtDate(r.rentedAt)}</td>
+      <td><span class="tag tag-yellow">Checked Out</span></td>
+      <td><button class="btn btn-success btn-sm" onclick="returnItem(${r.id})">Return Item</button></td>
+    </tr>`).join('');
+  } else {
+    activeBody.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="empty-icon">✅</div>You have nothing checked out.</div></td></tr>`;
+  }
+
+  // history
+  const histBody = document.getElementById('historyBody');
+  if (history.length) {
+    histBody.innerHTML = history.map(r => `<tr>
+      <td>${r.itemName}</td>
+      <td>${fmtDate(r.rentedAt)}</td>
+      <td><span class="tag tag-green">${fmtDate(r.returnedAt)}</span></td>
+    </tr>`).join('');
+  } else {
+    histBody.innerHTML = `<tr><td colspan="3"><div class="empty"><div class="empty-icon">📋</div>No rental history yet.</div></td></tr>`;
+  }
+}
+
+function returnItem(rentalId) {
+  if (!confirm('Mark this item as returned?')) return;
+  DB.returnItem(rentalId);
+  render();
+  toast('Item returned successfully.');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function render() {
+  renderAnnouncements();
+  renderEquipment();
+  renderMyRentals();
+}
+render();
+</script>
+</body>
+</html>

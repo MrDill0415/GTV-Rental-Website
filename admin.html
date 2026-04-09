@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTV Rental — Admin Panel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <span class="nav-brand">GTV Rental</span>
+    <div class="nav-user">
+      <span id="navUser"></span>
+      <span class="tag tag-blue">Admin</span>
+      <button class="btn btn-ghost btn-sm" onclick="DB.logout()">Sign Out</button>
+    </div>
+  </div>
+</nav>
+
+<div class="page-wrap" style="padding-top:1.5rem;padding-bottom:3rem;">
+
+  <!-- Stats bar -->
+  <div class="stat-cards" id="statsBar"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="approvals">Approvals <span id="pendingBadge" style="display:none" class="badge" style="background:var(--warn);color:#000"></span></button>
+    <button class="tab" data-tab="users">Users</button>
+    <button class="tab" data-tab="items">Equipment</button>
+    <button class="tab" data-tab="rentals">Active Rentals</button>
+    <button class="tab" data-tab="announcements">Announcements</button>
+  </div>
+
+  <!-- ── APPROVALS ────────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-approvals">
+    <div class="section-header">
+      <span class="section-title">Pending Approval Requests</span>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Item</th>
+              <th>Requested</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="approvalsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── USERS ────────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-users">
+    <div class="section-header">
+      <span class="section-title">Manage Users</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addUserModal')">+ Add User</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Active Rentals</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ITEMS ────────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-items">
+    <div class="section-header">
+      <span class="section-title">Manage Equipment</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addItemModal')">+ Add Item</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Approval Required</th>
+              <th>Total Qty</th>
+              <th>Available</th>
+              <th>Out</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RENTALS ──────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-rentals">
+    <div class="section-header">
+      <span class="section-title">All Active Rentals</span>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Item</th>
+              <th>Rented</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rentalsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ANNOUNCEMENTS ────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-announcements">
+    <div class="section-header">
+      <span class="section-title">Announcements</span>
+    </div>
+    <div class="card" style="margin-bottom:1.25rem">
+      <div class="card-title">Post New Announcement</div>
+      <textarea id="announcementText" placeholder="Type your announcement here..." rows="3"></textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:.75rem" onclick="postAnnouncement()">Post Announcement</button>
+    </div>
+    <div id="announcementsList"></div>
+  </div>
+
+</div>
+
+<!-- ── USER DETAIL MODAL ──────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="userDetailModal">
+  <div class="modal" style="max-width:650px">
+    <div class="modal-title" id="userDetailTitle">User Details</div>
+    <div id="userDetailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('userDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD USER MODAL ─────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal">
+    <div class="modal-title">Invite New User</div>
+    <div class="form-group">
+      <label>Student Email</label>
+      <input type="text" id="newEmail" placeholder="e.g. student@school.edu">
+      <span class="text-muted" style="font-size:.78rem;margin-top:.3rem;display:block">They'll receive an email to create their own username and password.</span>
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="newIsAdmin" style="width:auto;margin-right:.4rem">
+        Admin account
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addUserModal')">Cancel</button>
+      <button class="btn btn-primary" id="sendInviteBtn" onclick="inviteUser()">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── EDIT USER MODAL ────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal">
+    <div class="modal-title">Edit User</div>
+    <input type="hidden" id="editUserId">
+    <div class="form-group">
+      <label>New Password <span class="text-muted">(leave blank to keep current)</span></label>
+      <input type="password" id="editPassword" placeholder="New password...">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="editIsAdmin" style="width:auto;margin-right:.4rem">
+        Admin account
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('editUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditUser()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD ITEM MODAL ─────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="addItemModal">
+  <div class="modal">
+    <div class="modal-title">Add Equipment</div>
+    <div class="form-group">
+      <label>Item Name</label>
+      <input type="text" id="newItemName" placeholder="e.g. Canon EOS R50">
+    </div>
+    <div class="form-group">
+      <label>Quantity</label>
+      <input type="number" id="newItemQty" min="1" value="1">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="newItemApproval" style="width:auto;margin-right:.4rem">
+        Requires teacher approval to rent
+        <span class="text-muted" style="display:block;margin-top:.2rem;font-size:.78rem">
+          Enable for cameras, microphones, and other high-value items.
+        </span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('addItemModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addItem()">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── EDIT ITEM MODAL ────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editItemModal">
+  <div class="modal">
+    <div class="modal-title" id="editItemTitle">Edit Item</div>
+    <input type="hidden" id="editItemId">
+    <div class="form-group">
+      <label>Total Quantity</label>
+      <input type="number" id="editItemQty" min="1">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="editItemApproval" style="width:auto;margin-right:.4rem">
+        Requires teacher approval to rent
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('editItemModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItemEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="app.js"></script>
+<script>
+emailjs.init('PrzHDcE7EOMs0AuaL');
+const admin = DB.requireAdmin();
+document.getElementById('navUser').textContent = 'Hello, ' + admin.username;
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    render();
+  });
+});
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const users    = DB.getUsers().filter(u => !u.isAdmin);
+  const items    = DB.getItems();
+  const active   = DB.getRentals().filter(r => r.status === 'active' && !r.returnedAt);
+  const pending  = DB.getPendingRentals();
+
+  // update pending badge on tab
+  const badge = document.getElementById('pendingBadge');
+  if (pending.length) {
+    badge.style.display = 'inline';
+    badge.textContent   = pending.length;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Students</div><div class="stat-val">${users.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Equipment Types</div><div class="stat-val">${items.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Items Out</div><div class="stat-val" style="color:var(--warn)">${active.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Approvals</div><div class="stat-val" style="color:var(--accent)">${pending.length}</div></div>
+  `;
+}
+
+// ── Approvals ─────────────────────────────────────────────────────────────────
+function renderApprovals() {
+  const pending = DB.getPendingRentals();
+  const body    = document.getElementById('approvalsBody');
+  if (!pending.length) {
+    body.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="empty-icon">✅</div>No pending requests.</div></td></tr>`;
+    return;
+  }
+  body.innerHTML = pending.map(r => `<tr>
+    <td><strong>${r.username}</strong></td>
+    <td>${r.itemName}</td>
+    <td>${fmtDate(r.requestedAt)}</td>
+    <td class="gap-sm">
+      <button class="btn btn-success btn-sm" onclick="approveRental(${r.id})">Approve</button>
+      <button class="btn btn-danger btn-sm"  onclick="denyRental(${r.id})">Deny</button>
+    </td>
+  </tr>`).join('');
+}
+
+function approveRental(id) {
+  DB.approveRental(id);
+  render();
+  toast('Rental approved.');
+}
+function denyRental(id) {
+  DB.denyRental(id);
+  render();
+  toast('Rental denied.', 'error');
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+function renderUsers() {
+  const users   = DB.getUsers();
+  const rentals = DB.getRentals().filter(r => r.status === 'active' && !r.returnedAt);
+  const body    = document.getElementById('usersBody');
+  if (!users.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="empty-icon">👤</div>No users yet.</div></td></tr>`; return; }
+  body.innerHTML = users.map(u => {
+    if (u.status === 'pending') {
+      return `<tr>
+        <td><span class="text-muted">${u.email}</span></td>
+        <td><span class="tag tag-yellow">Pending Setup</span></td>
+        <td>—</td>
+        <td class="gap-sm">
+          <button class="btn btn-ghost btn-sm" onclick="resendInvite(${u.id})">Resend Invite</button>
+          <button class="btn btn-danger btn-sm" onclick="removeUser(${u.id})">Remove</button>
+        </td>
+      </tr>`;
+    }
+    const active = rentals.filter(r => r.userId === u.id).length;
+    const role   = u.isAdmin ? `<span class="tag tag-blue">Admin</span>` : `<span class="tag tag-green">Student</span>`;
+    const isSelf = u.id === admin.id;
+    return `<tr>
+      <td><strong>${u.username}</strong> <span class="text-muted" style="font-size:.78rem">${u.email || ''}</span></td>
+      <td>${role}</td>
+      <td>${active > 0 ? `<span class="tag tag-yellow">${active} item${active>1?'s':''}</span>` : '<span class="tag tag-green">None</span>'}</td>
+      <td class="gap-sm">
+        <button class="btn btn-ghost btn-sm" onclick="viewUser(${u.id})">View History</button>
+        <button class="btn btn-warn btn-sm"  onclick="openEditUser(${u.id})">Edit</button>
+        ${!isSelf ? `<button class="btn btn-danger btn-sm" onclick="removeUser(${u.id})">Remove</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function viewUser(id) {
+  const user    = DB.getUsers().find(u => u.id === id);
+  const active  = DB.getActiveRentals(id);
+  const pending = DB.getUserRentals(id).filter(r => r.status === 'pending');
+  const history = DB.getUserRentals(id).filter(r => r.returnedAt);
+  document.getElementById('userDetailTitle').textContent = user.username + ' — Rental Details';
+
+  let html = '';
+
+  if (pending.length) {
+    html += `<h4 style="margin-bottom:.5rem;color:var(--warn);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em">Awaiting Approval (${pending.length})</h4>`;
+    html += `<div class="table-wrap"><table><thead><tr><th>Item</th><th>Requested</th><th>Actions</th></tr></thead><tbody>` +
+      pending.map(r => `<tr>
+        <td>${r.itemName}</td>
+        <td>${fmtDate(r.requestedAt)}</td>
+        <td class="gap-sm">
+          <button class="btn btn-success btn-sm" onclick="approveRental(${r.id});viewUser(${id})">Approve</button>
+          <button class="btn btn-danger btn-sm"  onclick="denyRental(${r.id});viewUser(${id})">Deny</button>
+        </td>
+      </tr>`).join('') +
+      `</tbody></table></div>`;
+  }
+
+  html += `<h4 style="margin-top:1rem;margin-bottom:.5rem;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em">Currently Out (${active.length})</h4>`;
+  if (active.length) {
+    html += `<div class="table-wrap"><table><thead><tr><th>Item</th><th>Rented</th><th>Return</th></tr></thead><tbody>` +
+      active.map(r => `<tr>
+        <td>${r.itemName}</td>
+        <td>${fmtDate(r.rentedAt)}</td>
+        <td><button class="btn btn-success btn-sm" onclick="returnItem(${r.id});viewUser(${id})">Mark Returned</button></td>
+      </tr>`).join('') +
+      `</tbody></table></div>`;
+  } else {
+    html += `<p class="text-muted" style="margin-bottom:1rem">Nothing currently rented.</p>`;
+  }
+
+  html += `<h4 style="margin-top:1.25rem;margin-bottom:.5rem;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em">Rental History (${history.length})</h4>`;
+  if (history.length) {
+    html += `<div class="table-wrap"><table><thead><tr><th>Item</th><th>Rented</th><th>Returned</th></tr></thead><tbody>` +
+      history.map(r => `<tr><td>${r.itemName}</td><td>${fmtDate(r.rentedAt)}</td><td>${fmtDate(r.returnedAt)}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+  } else {
+    html += `<p class="text-muted">No past rentals.</p>`;
+  }
+
+  document.getElementById('userDetailBody').innerHTML = html;
+  openModal('userDetailModal');
+}
+
+function inviteUser() {
+  const email   = document.getElementById('newEmail').value.trim();
+  const isAdmin = document.getElementById('newIsAdmin').checked;
+  if (!email) { toast('Please enter an email address.', 'error'); return; }
+
+  const result = DB.inviteUser(email, isAdmin);
+  if (result.error) { toast(result.error, 'error'); return; }
+
+  const setupLink = window.location.origin + '/setup.html?token=' + result.token;
+  const btn       = document.getElementById('sendInviteBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Sending...';
+
+  emailjs.send('service_1su78bj', 'template_e6hdmmf', {
+    to_email:   email,
+    setup_link: setupLink,
+  }).then(() => {
+    document.getElementById('newEmail').value   = '';
+    document.getElementById('newIsAdmin').checked = false;
+    btn.disabled    = false;
+    btn.textContent = 'Send Invite';
+    closeModal('addUserModal');
+    render();
+    toast('Invite sent to ' + email);
+  }).catch(err => {
+    // Email failed — remove the pending user so teacher can retry
+    DB.removeUser(result.id);
+    btn.disabled    = false;
+    btn.textContent = 'Send Invite';
+    toast('Failed to send email: ' + (err.text || 'unknown error'), 'error');
+  });
+}
+
+function openEditUser(id) {
+  const user = DB.getUsers().find(u => u.id === id);
+  document.getElementById('editUserId').value    = id;
+  document.getElementById('editPassword').value  = '';
+  document.getElementById('editIsAdmin').checked = user.isAdmin;
+  openModal('editUserModal');
+}
+
+function saveEditUser() {
+  const id       = parseInt(document.getElementById('editUserId').value);
+  const password = document.getElementById('editPassword').value;
+  const isAdmin  = document.getElementById('editIsAdmin').checked;
+  const fields   = { isAdmin };
+  if (password) fields.password = password;
+  DB.updateUser(id, fields);
+  closeModal('editUserModal');
+  render();
+  toast('User updated.');
+}
+
+function removeUser(id) {
+  if (!confirm('Remove this user? Their rental history will remain.')) return;
+  DB.removeUser(id);
+  render();
+  toast('User removed.');
+}
+
+function resendInvite(id) {
+  const user = DB.getUsers().find(u => u.id === id);
+  if (!user || user.status !== 'pending') return;
+  const setupLink = window.location.origin + '/setup.html?token=' + user.token;
+  emailjs.send('service_1su78bj', 'template_e6hdmmf', {
+    to_email:   user.email,
+    setup_link: setupLink,
+  }).then(() => {
+    toast('Invite resent to ' + user.email);
+  }).catch(err => {
+    toast('Failed to resend: ' + (err.text || 'unknown error'), 'error');
+  });
+}
+
+// ── Items ─────────────────────────────────────────────────────────────────────
+function renderItems() {
+  const items = DB.getItems();
+  const body  = document.getElementById('itemsBody');
+  if (!items.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📦</div>No equipment added yet.</div></td></tr>`; return; }
+  body.innerHTML = items.map(i => {
+    const out      = i.quantity - i.available;
+    const approval = i.requiresApproval
+      ? `<span class="tag tag-yellow">Approval Required</span>`
+      : `<span class="tag tag-green">Instant</span>`;
+    return `<tr>
+      <td><strong>${i.name}</strong></td>
+      <td>${approval}</td>
+      <td>${i.quantity}</td>
+      <td><span class="tag ${i.available>0?'tag-green':'tag-red'}">${i.available}</span></td>
+      <td>${out > 0 ? `<span class="tag tag-yellow">${out}</span>` : '0'}</td>
+      <td class="gap-sm">
+        <button class="btn btn-warn btn-sm" onclick="openEditItem(${i.id})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="removeItem(${i.id})">Remove</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function addItem() {
+  const name     = document.getElementById('newItemName').value.trim();
+  const qty      = document.getElementById('newItemQty').value;
+  const approval = document.getElementById('newItemApproval').checked;
+  if (!name || !qty) { toast('Please fill in all fields.', 'error'); return; }
+  DB.addItem(name, qty, approval);
+  document.getElementById('newItemName').value    = '';
+  document.getElementById('newItemQty').value     = '1';
+  document.getElementById('newItemApproval').checked = false;
+  closeModal('addItemModal');
+  render();
+  toast('Equipment added.');
+}
+
+function openEditItem(id) {
+  const item = DB.getItems().find(i => i.id === id);
+  document.getElementById('editItemId').value        = id;
+  document.getElementById('editItemTitle').textContent = 'Edit — ' + item.name;
+  document.getElementById('editItemQty').value        = item.quantity;
+  document.getElementById('editItemApproval').checked = item.requiresApproval;
+  openModal('editItemModal');
+}
+
+function saveItemEdit() {
+  const id       = parseInt(document.getElementById('editItemId').value);
+  const quantity = parseInt(document.getElementById('editItemQty').value);
+  const approval = document.getElementById('editItemApproval').checked;
+  DB.updateItem(id, { quantity, requiresApproval: approval });
+  closeModal('editItemModal');
+  render();
+  toast('Item updated.');
+}
+
+function removeItem(id) {
+  if (!confirm('Remove this item? This cannot be undone.')) return;
+  DB.removeItem(id);
+  render();
+  toast('Item removed.');
+}
+
+// ── Active Rentals ────────────────────────────────────────────────────────────
+function renderRentals() {
+  const rentals = DB.getRentals().filter(r => r.status === 'active' && !r.returnedAt);
+  const body    = document.getElementById('rentalsBody');
+  if (!rentals.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="empty-icon">✅</div>Nothing currently checked out.</div></td></tr>`; return; }
+  body.innerHTML = rentals.map(r => `<tr>
+    <td><strong>${r.username}</strong></td>
+    <td>${r.itemName}</td>
+    <td>${fmtDate(r.rentedAt)}</td>
+    <td><button class="btn btn-success btn-sm" onclick="returnItem(${r.id})">Mark Returned</button></td>
+  </tr>`).join('');
+}
+
+function returnItem(rentalId) {
+  DB.returnItem(rentalId);
+  render();
+  toast('Item marked as returned.');
+}
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+function renderAnnouncements() {
+  const list = DB.getAnnouncements();
+  const el   = document.getElementById('announcementsList');
+  if (!list.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📢</div>No announcements yet.</div>`; return; }
+  el.innerHTML = list.map(a => `
+    <div class="announcement-item">
+      <div>
+        <div class="announcement-text">${escHtml(a.text)}</div>
+        <div class="announcement-meta">${fmtDate(a.createdAt)}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeAnnouncement(${a.id})">Delete</button>
+    </div>
+  `).join('');
+}
+
+function postAnnouncement() {
+  const text = document.getElementById('announcementText').value.trim();
+  if (!text) { toast('Please enter some text.', 'error'); return; }
+  DB.addAnnouncement(text);
+  document.getElementById('announcementText').value = '';
+  renderAnnouncements();
+  renderStats();
+  toast('Announcement posted.');
+}
+
+function removeAnnouncement(id) {
+  DB.removeAnnouncement(id);
+  renderAnnouncements();
+  toast('Announcement deleted.');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderApprovals();
+  renderUsers();
+  renderItems();
+  renderRentals();
+  renderAnnouncements();
+}
+render();
+</script>
+</body>
+</html>
