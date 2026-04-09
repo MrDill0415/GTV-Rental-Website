@@ -13,7 +13,7 @@ const DB = {
   init() {
     if (!localStorage.getItem('gtv_initialized')) {
       this._set('users', [
-        { id: 1, username: 'admin', password: 'admin123', isAdmin: true }
+        { id: 1, username: 'admin', password: 'admin123', isAdmin: true, status: 'active', email: null }
       ]);
       this._set('items', []);
       this._set('rentals', []);
@@ -25,7 +25,7 @@ const DB = {
   // ── session ───────────────────────────────────────────────────────────────
   login(username, password) {
     const users = this._get('users');
-    const user = users.find(u => u.username === username && u.password === password && u.status === 'active');
+    const user = users.find(u => u.username === username && u.password === password && (u.status === 'active' || !u.status));
     if (!user) return null;
     sessionStorage.setItem('gtv_session', JSON.stringify({ id: user.id, username: user.username, isAdmin: user.isAdmin }));
     return user;
