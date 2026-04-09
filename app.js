@@ -13,19 +13,26 @@ const DB = {
   init() {
     if (!localStorage.getItem('gtv_initialized')) {
       this._set('users', [
-        { id: 1, username: 'admin', password: 'admin123', isAdmin: true, status: 'active', email: null }
+        { id: 1, username: 'admin', password: 'admin123', isAdmin: true }
       ]);
       this._set('items', []);
       this._set('rentals', []);
       this._set('announcements', []);
       localStorage.setItem('gtv_initialized', '1');
+    } else {
+      // Always ensure admin account exists
+      const users = this.getUsers();
+      if (!users.find(u => u.username === 'admin' && u.isAdmin)) {
+        users.unshift({ id: 1, username: 'admin', password: 'admin123', isAdmin: true });
+        this._set('users', users);
+      }
     }
   },
 
   // ── session ───────────────────────────────────────────────────────────────
   login(username, password) {
     const users = this._get('users');
-    const user = users.find(u => u.username === username && u.password === password && (u.status === 'active' || !u.status));
+    const user = users.find(u => u.username === username && u.password === password);
     if (!user) return null;
     sessionStorage.setItem('gtv_session', JSON.stringify({ id: user.id, username: user.username, isAdmin: user.isAdmin }));
     return user;
@@ -48,32 +55,14 @@ const DB = {
 
   // ── users ─────────────────────────────────────────────────────────────────
   getUsers() { return this._get('users'); },
-
-  // Teacher invites a student by email — account is pending until they set up a password
-  inviteUser(email, isAdmin = false) {
+  addUser(username, password, isAdmin = false) {
     const users = this.getUsers();
-    if (users.find(u => u.email === email)) return { error: 'An account with that email already exists.' };
-    const id    = Date.now();
-    const token = crypto.randomUUID();
-    users.push({ id, email, username: null, password: null, isAdmin, status: 'pending', token });
+    if (users.find(u => u.username === username)) return { error: 'Username already exists.' };
+    const id = Date.now();
+    users.push({ id, username, password, isAdmin });
     this._set('users', users);
-    return { id, token };
+    return { id };
   },
-
-  // Student completes setup — sets their own username + password via the emailed link
-  completeSetup(token, username, password) {
-    const users = this.getUsers();
-    const user  = users.find(u => u.token === token && u.status === 'pending');
-    if (!user) return { error: 'Invalid or expired setup link.' };
-    if (users.find(u => u.username === username && u.id !== user.id)) return { error: 'That username is already taken.' };
-    user.username = username;
-    user.password = password;
-    user.status   = 'active';
-    user.token    = null;
-    this._set('users', users.map(u => u.id === user.id ? user : u));
-    return { id: user.id };
-  },
-
   removeUser(id) {
     this._set('users', this.getUsers().filter(u => u.id !== id));
   },
