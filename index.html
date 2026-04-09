@@ -32,21 +32,11 @@
         Contact your teacher if you don't have an account.
       </p>
 
-      <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center;">
-        <button class="btn btn-ghost btn-sm" onclick="hardReset()" style="font-size:.75rem;color:var(--muted)">Reset Site Data</button>
-      </div>
     </div>
   </div>
 
   <script src="app.js?v=4"></script>
   <script>
-    function hardReset() {
-      if (!confirm('This will wipe all site data and restore the default admin account. Continue?')) return;
-      localStorage.clear();
-      DB.init();
-      alert('Reset complete. Log in with:\nUsername: admin\nPassword: admin123');
-    }
-
     // redirect if already logged in
     const existing = DB.currentUser();
     if (existing) {
